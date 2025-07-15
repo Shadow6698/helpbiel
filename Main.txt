@@ -1,33 +1,120 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local blockedPlayers = {}
+local playerButtons = {}
 
--- Palavra de ativação personalizada
-local comando = "helpbiel"
+-- Criar o GUI
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "PlayerListGui"
 
--- Função para teleportar até o player que pediu ajuda
-local function TeleportarAte(player)
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame + Vector3.new(2, 0, 2)
-        print("Teleportado até "..player.Name)
-    end
-end
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 250, 0, 330)
+MainFrame.Position = UDim2.new(0, 50, 0, 100)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
 
--- Quando um novo jogador entrar
-Players.PlayerAdded:Connect(function(player)
-    player.Chatted:Connect(function(msg)
-        if string.lower(msg) == comando then
-            TeleportarAte(player)
-        end
-    end)
+local UIListLayout = Instance.new("UIListLayout", MainFrame)
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.Text = "Lista de Jogadores"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextScaled = true
+Title.Font = Enum.Font.GothamBold
+
+-- Botão de reset da lista
+local ResetButton = Instance.new("TextButton", MainFrame)
+ResetButton.Size = UDim2.new(1, -10, 0, 25)
+ResetButton.Text = "🔄 Resetar Lista"
+ResetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ResetButton.Font = Enum.Font.GothamBold
+ResetButton.TextSize = 14
+ResetButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+ResetButton.BorderSizePixel = 0
+
+ResetButton.MouseButton1Click:Connect(function()
+	updatePlayerList()
 end)
 
--- Para os jogadores que já estão no servidor
-for _, player in pairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        player.Chatted:Connect(function(msg)
-            if string.lower(msg) == comando then
-                TeleportarAte(player)
-            end
-        end)
-    end
+-- Função para atualizar a lista de jogadores
+function updatePlayerList()
+	-- Limpar os botões antigos
+	for _, btn in pairs(playerButtons) do
+		if btn and btn.Parent then
+			btn:Destroy()
+		end
+	end
+	playerButtons = {}
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local btn = Instance.new("TextButton", MainFrame)
+			btn.Size = UDim2.new(1, -10, 0, 25)
+			btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.Font = Enum.Font.Gotham
+			btn.TextSize = 14
+			btn.Text = player.Name
+
+			-- Cor se já estiver bloqueado
+			if blockedPlayers[player.Name] then
+				btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+			end
+
+			btn.MouseButton1Click:Connect(function()
+				if blockedPlayers[player.Name] then
+					blockedPlayers[player.Name] = nil
+					btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+				else
+					blockedPlayers[player.Name] = true
+					btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+				end
+			end)
+
+			playerButtons[player.Name] = btn
+		end
+	end
 end
+
+-- Atualiza a lista a cada 3 minutos
+task.spawn(function()
+	while true do
+		updatePlayerList()
+		task.wait(180)
+	end
+end)
+
+-- Inicializar
+updatePlayerList()
+
+-- Detectar mensagens dos jogadores
+local function connectChatted(player)
+	player.Chatted:Connect(function(msg)
+		if msg:lower() == "helpbiel" and not blockedPlayers[player.Name] then
+			local targetChar = player.Character
+			if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+				local myChar = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+				local hrp = myChar:WaitForChild("HumanoidRootPart")
+				hrp.CFrame = targetChar.HumanoidRootPart.CFrame + Vector3.new(2, 0, 2)
+			end
+		end
+	end)
+end
+
+-- Conectar para todos os jogadores atuais
+for _, player in ipairs(Players:GetPlayers()) do
+	if player ~= LocalPlayer then
+		connectChatted(player)
+	end
+end
+
+-- Novos jogadores
+Players.PlayerAdded:Connect(function(player)
+	connectChatted(player)
+	updatePlayerList()
+end)
